@@ -4,34 +4,35 @@ editor if you plan to continue editing the block that represents it in
 the Block Editor! File corruption is VERY likely to occur.
 */
 /*
-Copyright (C) 1991-2014 Altera Corporation
+Copyright (C) 2025  Altera Corporation. All rights reserved.
 Your use of Altera Corporation's design tools, logic functions 
-and other software and tools, and its AMPP partner logic 
+and other software and tools, and any partner logic 
 functions, and any output files from any of the foregoing 
 (including device programming or simulation files), and any 
 associated documentation or information are expressly subject 
 to the terms and conditions of the Altera Program License 
-Subscription Agreement, Altera MegaCore Function License 
-Agreement, or other applicable license agreement, including, 
-without limitation, that your use is for the sole purpose of 
-programming logic devices manufactured by Altera and sold by 
-Altera or its authorized distributors.  Please refer to the 
-applicable agreement for further details.
+Subscription Agreement, the Altera Quartus Prime License Agreement,
+the Altera IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Altera and sold by Altera or its authorized distributors.  Please
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
 */
 (header "symbol" (version "1.2"))
 (symbol
 	(rect 0 0 112 48)
-	(text "const_ddfs_freq1" (rect 8 0 123 16)(font "Arial" (font_size 10)))
-	(text "inst" (rect 8 32 25 44)(font "Arial" ))
+	(text "const_ddfs_freq1" (rect 2 0 120 15)(font "Arial" (font_size 10)))
+	(text "inst" (rect 8 33 24 44)(font "Arial" ))
 	(port
 		(pt 112 24)
 		(output)
-		(text "result[7..0]" (rect 0 0 60 14)(font "Arial" (font_size 8)))
-		(text "25" (rect 81 17 91 30)(font "Arial" (font_size 8)))
+		(text "result[7..0]" (rect 0 0 61 13)(font "Arial" (font_size 8)))
+		(text "25" (rect 79 19 91 30)(font "Arial" (font_size 8)))
 		(line (pt 112 24)(pt 96 24)(line_width 3))
 	)
 	(drawing
-		(text "8" (rect 99 26 201 63)(font "Arial" ))
+		(text "8" (rect 98 27 200 63)(font "Arial" ))
 		(line (pt 106 20)(pt 98 28))
 		(line (pt 16 16)(pt 16 32))
 		(line (pt 16 16)(pt 96 16))
