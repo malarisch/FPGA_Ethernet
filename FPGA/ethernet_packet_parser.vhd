@@ -12,7 +12,9 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity ethernet_packet_parser is 
 	generic(
-		udp_port : integer := 4023
+		udp_port : integer := 4023;
+		udp_port_ptpv2_event : integer := 319;
+		udp_port_ptpv2_general : integer := 320
 	);
 	port
 	(
@@ -46,7 +48,9 @@ entity ethernet_packet_parser is
 		send_icmp_response	: out std_logic;
 		udp_payload				: out std_logic_vector(31 downto 0);
 		send_udp_response		: out std_logic;
-		ram_read_address		: out unsigned(10 downto 0)
+		ram_read_address		: out unsigned(10 downto 0);
+
+		parse_ptp_packet		: out std_logic
 	);
 end entity;
 
@@ -71,7 +75,7 @@ begin
 				send_arp_response <= '0';
 				send_icmp_response <= '0';
 				send_udp_response <= '0';
-
+				parse_ptp_packet <= '0';
 				-- check packet type
 				if (pkt_type = x"0800") then
 					-- we received IP packet
@@ -133,6 +137,11 @@ begin
 					end if;
 					
 					byte_counter <= byte_counter + 1;
+				elsif (udp_dst_port = udp_port_ptpv2_event OR udp_dst_port = udp_port_ptpv2_general) then
+					-- PTPv2 Event Messages (e.g., Sync, Delay_Req)
+					-- handle PTPv2 event messages here
+					parse_ptp_packet <= '1';
+					s_SM_PacketParser <= s_Done;
 				else
 					-- unexpected destination-port
 					s_SM_PacketParser <= s_UnexpectedPacket;

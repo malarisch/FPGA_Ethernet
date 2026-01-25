@@ -13,7 +13,7 @@ use ieee.numeric_std.all;
 
 entity eth_ram is
 	generic(
-		lastAddress : integer := 100 -- more entries will use lots of FPGA-ressources. Better use a dedicated SD-RAM here instead
+		lastAddress : integer := 1500 -- more entries will use lots of FPGA-ressources. Better use a dedicated SD-RAM here instead
 	);
 	port(
 		rx_clk			: in std_logic;

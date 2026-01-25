@@ -12,7 +12,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity ethernet_receive is 
 	generic(
-		lastRamAddress : integer := 100 -- more entries will use lots of FPGA-ressources. Better use a dedicated SD-RAM here instead
+		lastRamAddress : integer := 1500 -- more entries will use lots of FPGA-ressources. Better use a dedicated SD-RAM here instead
 	);
 	port
 	(
