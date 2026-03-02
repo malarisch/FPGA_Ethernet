@@ -5,13 +5,13 @@ use IEEE.NUMERIC_STD.ALL;
 entity const_eth_config is
 	generic
 	(
-		MAC0		: integer := 0;   -- AA = 00 = demo MAC-Address from Intel Triple Speed Ethernet example
-		MAC1		: integer := 28;  -- BB = 1c
-		MAC2		: integer := 35;  -- CC = 23
-		MAC3		: integer := 23;  -- DD = 17
-		MAC4		: integer := 74;  -- EE = 4a
-		MAC5		: integer := 203; -- FF = cb
-		IP0		: integer := 192;
+		MAC0		: integer := 16#11#;   -- AA = 00 = demo MAC-Address from Intel Triple Speed Ethernet example
+		MAC1		: integer := 16#22#;  -- BB = 1c
+		MAC2		: integer := 16#33#;  -- CC = 23
+		MAC3		: integer := 16#44#;  -- DD = 17
+		MAC4		: integer := 16#55#;  -- EE = 4a
+		MAC5		: integer := 16#66#; -- FF = cb
+		IP0		: integer := 16#FF#;
 		IP1		: integer := 168;
 		IP2		: integer := 0;
 		IP3		: integer := 42;

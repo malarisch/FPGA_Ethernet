@@ -14,7 +14,8 @@ entity ethernet_packet_parser is
 	generic(
 		udp_port : integer := 4023;
 		udp_port_ptpv2_event : integer := 319;
-		udp_port_ptpv2_general : integer := 320
+		udp_port_ptpv2_general : integer := 320;
+		udp_port_rtp : integer := 5004
 	);
 	port
 	(
@@ -50,7 +51,8 @@ entity ethernet_packet_parser is
 		send_udp_response		: out std_logic;
 		ram_read_address		: out unsigned(10 downto 0);
 
-		parse_ptp_packet		: out std_logic
+		parse_ptp_packet		: out std_logic;
+		parse_rtp_packet		: out std_logic
 	);
 end entity;
 
@@ -76,6 +78,7 @@ begin
 				send_icmp_response <= '0';
 				send_udp_response <= '0';
 				parse_ptp_packet <= '0';
+				parse_rtp_packet <= '0';
 				-- check packet type
 				if (pkt_type = x"0800") then
 					-- we received IP packet
@@ -141,6 +144,10 @@ begin
 					-- PTPv2 Event Messages (e.g., Sync, Delay_Req)
 					-- handle PTPv2 event messages here
 					parse_ptp_packet <= '1';
+					s_SM_PacketParser <= s_Done;
+				elsif (udp_dst_port = udp_port_rtp) then
+					-- RTP audio packet (AES67)
+					parse_rtp_packet <= '1';
 					s_SM_PacketParser <= s_Done;
 				else
 					-- unexpected destination-port
