@@ -36,11 +36,18 @@ architecture Behavioral of ethernet_receive is
 begin
 	process (rx_clk)
 	begin
-		if (falling_edge(rx_clk)) then
+		if (rising_edge(rx_clk)) then
 			if (s_SM_Ethernet = s_Idle) then
 				if ((rx_frame = '1') and (rx_error = '0')) then
 					-- prepare receiving new ethernet-frame into RAM
-					ram_ptr <= 0;
+					-- IMPORTANT: Also capture first byte immediately if available
+					if (rx_byte_received = '1') then
+						ram_addr <= to_unsigned(0, 11);
+						ram_data <= rx_data;
+						ram_ptr <= 1;  -- first byte already stored
+					else
+						ram_ptr <= 0;
+					end if;
 
 					s_SM_Ethernet <= s_Read;
 				end if;
@@ -82,7 +89,7 @@ begin
 
 			elsif (s_SM_Ethernet = s_Done) then
 				frame_rdy <= '0';
-				
+				ram_ptr <= 0;
 				s_SM_Ethernet <= s_Idle;
 				
 			end if;
