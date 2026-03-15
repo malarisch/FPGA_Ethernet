@@ -15,6 +15,7 @@ entity ethernet_reset is
 	port
 	(
 		clk				: in std_logic;
+		enet_clk				: in std_logic;
 		power_good		: in std_logic;
 
 		phy_rstn			: out std_logic; -- reset for PHY
@@ -28,14 +29,24 @@ architecture Behavioral of ethernet_reset is
 	type t_SM_Ethernet is (s_Wait, s_Reset, s_Wait2, s_Wait3, s_Wait4, s_ArpRequest, s_Wait5, s_Done);
 	signal s_SM_Ethernet 	: t_SM_Ethernet := s_Wait;
 	signal counter : integer range 0 to 30000 := 0; -- allow up to 30 seconds
+	signal enet_rst_reg : std_logic := '0';
+	signal enet_rst_reg1 : std_logic := '0';
 begin
+
+	process (enet_clk)
+	begin
+		if (rising_edge(enet_clk)) then
+			enet_rst_reg1 <= enet_rst_reg;
+			mac_rst <= enet_rst_reg1;
+		end if;
+	end process;
 	process (clk)
 	begin
 		if (rising_edge(clk)) then
 			if s_SM_Ethernet = s_Wait then
 				sendArpRequest <= '0';
 				phy_rstn <= '1';
-				mac_rst <= '0';
+				enet_rst_reg <= '0';
 				tx_online <= '0';
 				
 				if (power_good = '1') then
@@ -51,7 +62,7 @@ begin
 			elsif s_SM_Ethernet = s_Reset then
 				-- rise reset signals
 				phy_rstn <= '0';
-				mac_rst <= '1';
+				enet_rst_reg <= '1';
 				counter <= 0;
 				
 				s_SM_Ethernet <= s_Wait2;
@@ -68,7 +79,7 @@ begin
 			elsif s_SM_Ethernet = s_Wait3 then
 				-- disable reset signal
 				phy_rstn <= '1';
-				mac_rst <= '0';
+				enet_rst_reg <= '0';
 
 				counter <= counter + 1;
 				-- wait 4 ms
