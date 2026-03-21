@@ -10,7 +10,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use IEEE.NUMERIC_STD.ALL;
 
-entity ethernet_packet_parser is 
+entity ethernet_packet_parser is
 	generic(
 		udp_port : integer := 4023;
 		udp_port_ptpv2_event : integer := 319;
@@ -37,7 +37,7 @@ entity ethernet_packet_parser is
 		ip_address				: in std_logic_vector(31 downto 0);
 		dst_ip_address			: in std_logic_vector(31 downto 0);
 		sync_in					: in std_logic;
-		
+
 		dst_mac_address		: out std_logic_vector(47 downto 0);
 		arp_mac_address		: out std_logic_vector(47 downto 0);
 		arp_ip_address			: out std_logic_vector(31 downto 0);
@@ -52,7 +52,8 @@ entity ethernet_packet_parser is
 		ram_read_address		: out unsigned(10 downto 0);
 
 		parse_ptp_packet		: out std_logic;
-		parse_rtp_packet		: out std_logic
+		parse_rtp_packet		: out std_logic; -- Toggle: changes state on each new RTP packet
+		parse_mcu_packet		: out std_logic  -- packet destined for MCU (everything except RTP audio)
 	);
 end entity;
 
@@ -61,13 +62,25 @@ architecture Behavioral of ethernet_packet_parser is
 	signal s_SM_PacketParser : t_SM_PacketParser := s_Idle;
 
 	signal byte_counter			: integer range 0 to 1500 := 0;
-	
+
 	signal pkt_icmp_src_ip 		: std_logic_vector(31 downto 0);
 	signal pkt_icmp_dst_ip 		: std_logic_vector(31 downto 0);
 	signal pkt_icmp_type 		: std_logic_vector(7 downto 0);
 	signal pkt_icmp_id			: std_logic_vector(15 downto 0);
 	signal pkt_icmp_sequence	: std_logic_vector(15 downto 0);
+
+	-- Toggle signal for CDC-safe RTP packet notification.
+	-- Toggles once per RTP packet so the receiving clock domain can
+	-- detect every event regardless of the phase relationship between
+	-- the two asynchronous 125 MHz clocks (Gigabit RGMII).
+	signal rtp_toggle				: std_logic := '0';
+
+	-- Local flag: was this packet RTP? Used only for MCU-forwarding decision in s_Done.
+	signal is_rtp					: std_logic := '0';
 begin
+	-- Drive the output continuously from the toggle register
+	parse_rtp_packet <= rtp_toggle;
+
 	process (clk)
 	begin
 		if (rising_edge(clk)) then
@@ -78,7 +91,8 @@ begin
 				send_icmp_response <= '0';
 				send_udp_response <= '0';
 				parse_ptp_packet <= '0';
-				parse_rtp_packet <= '0';
+				is_rtp <= '0';
+				parse_mcu_packet <= '0';
 				-- check packet type
 				if (pkt_type = x"0800") then
 					-- we received IP packet
@@ -101,7 +115,7 @@ begin
 
 				elsif (pkt_type = x"0806") then
 					-- we received ARP packet
-					
+
 					-- check type of ART packet (opcode)
 					if (arp_type = x"0001") then
 						-- we received an ARP request
@@ -117,19 +131,19 @@ begin
 					-- we received unsupported packet
 					s_SM_PacketParser <= s_UnexpectedPacket;
 				end if;
-				
+
 			elsif (s_SM_PacketParser = s_ProcessUdpPacket) then
 				-- do something with the new data
 				-- udp_src_port
 				-- udp_dst_port
 				-- udp_length
-				
+
 				-- check if the destination-port is our desired port
 				if (udp_dst_port = udp_port) then
 					--if (byte_counter < (udp_length - 8)) then
 					if (byte_counter < 4) then -- just read the first 4 bytes
 						send_udp_response <= '1';
-					
+
 						--udp_payload((byte_counter + 1) * 8 - 1 downto (byte_counter * 8)) <= ram_data;
 						udp_payload(31 - (byte_counter * 8) downto 24 - (byte_counter * 8)) <= ram_data;
 						ram_read_address <= to_unsigned(43 + byte_counter, 11); -- load next payload-byte
@@ -138,7 +152,7 @@ begin
 						send_udp_response <= '0';
 						s_SM_PacketParser <= s_Done;
 					end if;
-					
+
 					byte_counter <= byte_counter + 1;
 				elsif (udp_dst_port = udp_port_ptpv2_event OR udp_dst_port = udp_port_ptpv2_general) then
 					-- PTPv2 Event Messages (e.g., Sync, Delay_Req)
@@ -147,7 +161,9 @@ begin
 					s_SM_PacketParser <= s_Done;
 				elsif (udp_dst_port = udp_port_rtp) then
 					-- RTP audio packet (AES67)
-					parse_rtp_packet <= '1';
+					-- Toggle for CDC-safe notification to sys_clk domain
+					rtp_toggle <= not rtp_toggle;
+					is_rtp <= '1';
 					s_SM_PacketParser <= s_Done;
 				else
 					-- unexpected destination-port
@@ -196,7 +212,7 @@ begin
 					send_icmp_response <= '0';
 					s_SM_PacketParser <= s_Done;
 				end if;
-				
+
 				ram_read_address <= to_unsigned(27 + byte_counter, 11); -- load next payload-byte
 				byte_counter <= byte_counter + 1;
 
@@ -206,7 +222,7 @@ begin
 					if (byte_counter = 0) then
 						arp_mac_address <= pkt_src_mac;
 						arp_ip_address <= arp_src_ip;
-							
+
 						-- rise arp-response-flag for 10 clocks = 125MHz / 10 = 12.5MHz
 						-- so that arp-sender can recognize this signal
 						send_arp_response <= '1';
@@ -229,17 +245,22 @@ begin
 					-- and it was sent to our MAC- and IP-Address, so we can use this packet
 					dst_mac_address <= pkt_src_mac; -- use the source-MAC-Address as the future destination-MAC-Address
 				end if;
-				
+
 				s_SM_PacketParser <= s_Done;
-			
+
 			elsif (s_SM_PacketParser = s_UnexpectedPacket) then
-				-- raise some errors or do other things here
+				-- unknown packet type -> forward to MCU
+				parse_mcu_packet <= '1';
 				s_SM_PacketParser <= s_Idle;
 
 			elsif (s_SM_PacketParser = s_Done) then
 				-- everything is done successfully
+				-- forward all non-RTP packets to MCU
+				if (is_rtp = '0') then
+					parse_mcu_packet <= '1';
+				end if;
 				s_SM_PacketParser <= s_Idle;
-			
+
 			end if;
 		end if;
 	end process;

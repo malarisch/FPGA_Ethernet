@@ -42,7 +42,10 @@ entity eth_ram is
 
 		read2Addr		: in unsigned(10 downto 0); -- 0..1531
 		data2_out		: out std_logic_vector(7 downto 0); -- 8 bit
-		
+
+		read3Addr		: in unsigned(10 downto 0); -- 0..1531
+		data3_out		: out std_logic_vector(7 downto 0); -- 8 bit
+
 		sync_out			: out std_logic
 	);
 end eth_ram;
@@ -90,6 +93,7 @@ begin
 	
 	-- TODO: make this safe when calling addresses above "lastAddress"
 	data0_out <= ram(to_integer(read0Addr)); -- output to packet parser
-	data1_out <= ram(to_integer(read1Addr)); -- output to packet parser
-	data2_out <= ram(to_integer(read2Addr)); -- output to packet parser
+	data1_out <= ram(to_integer(read1Addr)); -- output to PTP module
+	data2_out <= ram(to_integer(read2Addr)); -- output to RTP ringbuffer
+	data3_out <= ram(to_integer(read3Addr)); -- output to MCU buffer bridge
 end Behavioral;
