@@ -23,12 +23,8 @@ entity eth_ram is
 
 		sync_in			: in std_logic;
 
-		pkt_dst_mac		: out std_logic_vector(47 downto 0); -- valid for all MAC-packets
-		pkt_src_mac		: out std_logic_vector(47 downto 0); -- valid for all MAC-packets
 		pkt_type			: out std_logic_vector(15 downto 0); -- valid for all MAC-packets
-		arp_type			: out std_logic_vector(15 downto 0); -- only valid for ARP packages
-		arp_dst_ip		: out std_logic_vector(31 downto 0); -- only valid for ARP packages
-		arp_src_ip		: out std_logic_vector(31 downto 0); -- only valid for ARP packages
+		
 		ip_type			: out std_logic_vector(7 downto 0);  -- valid for all IP-packets
 		udp_src_port	: out std_logic_vector(15 downto 0);
 		udp_dst_port	: out std_logic_vector(15 downto 0);
@@ -60,9 +56,7 @@ begin
 		if rising_edge(rx_clk) then
 			-- set output values when new frame is ready
 			if (sync_in = '1') then
-				-- set parameters of current packet
-				pkt_dst_mac <= ram(0) & ram(1) & ram(2) & ram(3) & ram(4) & ram(5); -- MSB contains typical left side of MAC
-				pkt_src_mac <= ram(6) & ram(7) & ram(8) & ram(9) & ram(10) & ram(11); -- MSB contains typical left side of MAC
+
 				pkt_type <= ram(12) & ram(13);
 				
 				-- values, if standard IP-packet
@@ -73,10 +67,7 @@ begin
 				udp_dst_port <= ram(36) & ram(37);
 				udp_length <= ram(38) & ram(39);
 
-				-- values, if ARP-packet
-				arp_type <= ram(20) & ram(21);
-				arp_src_ip <= ram(28) & ram(29) & ram(30) & ram(31); -- MSB contains typical "192"
-				arp_dst_ip <= ram(38) & ram(39) & ram(40) & ram(41); -- MSB contains typical "192"
+
 				
 				sync_out <= '1';
 			else
