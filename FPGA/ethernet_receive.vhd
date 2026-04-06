@@ -25,7 +25,12 @@ entity ethernet_receive is
 		ram_addr				: out unsigned(10 downto 0); -- 11 bit to store one full fifo
 		ram_data				: out std_logic_vector(7 downto 0);
 		frame_rdy			: out std_logic; -- ready
-		rx_byte_count		: out unsigned(10 downto 0)
+		rx_byte_count		: out unsigned(10 downto 0);
+
+	
+		is_mcu_pkt_tog_o	: out std_logic;
+		is_ptp_pkt_tog_o	: out std_logic;
+		is_rtp_pkt_tog_o	: out std_logic
 	);
 end entity;
 
@@ -33,11 +38,20 @@ architecture Behavioral of ethernet_receive is
 	type t_SM_Ethernet is (s_Idle, s_Read, s_FrameRdy, s_Done);
 	signal s_SM_Ethernet : t_SM_Ethernet := s_Idle;
 	signal ram_ptr 		: integer range 0 to 2000 := 0; -- we expecting not more than 2^11 bytes per frame
+	signal udp_port_sig : std_logic_vector(15 downto 0);
+	signal is_ipv4		: std_logic;
+	signal is_udp		: std_logic;
+	signal is_rtp_pkt_tog: std_logic;
+	signal is_ptp_pkt_tog: std_logic;
+	signal is_mcu_pkt_tog: std_logic;
 begin
 	process (rx_clk)
 	begin
 		if (rising_edge(rx_clk)) then
 			if (s_SM_Ethernet = s_Idle) then
+				is_ipv4 <= '0';
+				is_udp <= '0';
+				udp_port_sig <= (others => '0');
 				if ((rx_frame = '1') and (rx_error = '0')) then
 					-- prepare receiving new ethernet-frame into RAM
 					-- IMPORTANT: Also capture first byte immediately if available
@@ -66,6 +80,38 @@ begin
 							end if;
 
 							ram_ptr <= ram_ptr + 1;
+							if ram_ptr = 12 and rx_data = x"08" then
+								is_ipv4 <= '1';
+							end if;
+							if ram_ptr = 13 then
+								if rx_data = x"00" and is_ipv4 = '1' then
+									is_ipv4 <= '1';
+								else
+									is_ipv4 <= '0';
+								end if;
+							end if;
+							if (ram_ptr = 23 and rx_data = x"11") then
+								is_udp <= '1';
+							end if;
+							if (ram_ptr = 36) then
+								udp_port_sig(15 downto 8 ) <= rx_data;
+							elsif (ram_ptr = 37) then
+								udp_port_sig(7 downto 0 ) <= rx_data;
+							end if;
+							if (is_ipv4 = '1' and is_udp = '1' and ram_ptr = 60) then
+								if (unsigned(udp_port_sig) = 319 or unsigned(udp_port_sig) = 320) then
+									-- ptp packet
+									is_ptp_pkt_tog <= not is_ptp_pkt_tog;
+									is_mcu_pkt_tog <= not is_mcu_pkt_tog; -- not used, mcu needs packet length, we do not know yet
+
+								elsif (unsigned(udp_port_sig) = 5004 and ram_ptr = 60) then
+									-- rtp
+									is_rtp_pkt_tog <= not is_rtp_pkt_tog;
+								end if;
+							else
+								is_mcu_pkt_tog <= not is_mcu_pkt_tog;
+
+							end if;
 						else
 							-- data not valid -> just wait until rx_byte_received is reached
 							-- during this we keep the values on ram_addr and ram_data
@@ -95,4 +141,7 @@ begin
 			end if;
 		end if;
 	end process;
+	is_mcu_pkt_tog_o <= is_mcu_pkt_tog;
+	is_ptp_pkt_tog_o <= is_ptp_pkt_tog;
+	is_rtp_pkt_tog_o <= is_rtp_pkt_tog;
 end Behavioral;
