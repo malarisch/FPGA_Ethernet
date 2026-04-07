@@ -12,7 +12,7 @@ use IEEE.NUMERIC_STD.all;
 
 entity ethernet_receive is
   generic (
-    lastRamAddress : integer := 1500 -- more entries will use lots of FPGA-ressources. Better use a dedicated SD-RAM here instead
+    lastRamAddress : integer := 1532 -- more entries will use lots of FPGA-ressources. Better use a dedicated SD-RAM here instead
   );
   port (
     rx_clk           : in std_logic;
@@ -41,14 +41,16 @@ architecture Behavioral of ethernet_receive is
   signal is_rtp_pkt_tog : std_logic;
   signal is_ptp_pkt_tog : std_logic;
   signal is_mcu_pkt_tog : std_logic;
+  signal mcu_pkt_pending : std_logic;  -- deferred MCU toggle
 begin
   process (rx_clk)
   begin
     if (rising_edge(rx_clk)) then
       if (s_SM_Ethernet = s_Idle) then
-        is_ipv4      <= '0';
-        is_udp       <= '0';
-        udp_port_sig <= (others => '0');
+        is_ipv4         <= '0';
+        is_udp          <= '0';
+        mcu_pkt_pending <= '0';
+        udp_port_sig    <= (others => '0');
         if ((rx_frame = '1') and (rx_error = '0')) then
           -- prepare receiving new ethernet-frame into RAM
           -- IMPORTANT: Also capture first byte immediately if available
@@ -96,22 +98,21 @@ begin
                 udp_port_sig(7 downto 0) <= rx_data;
               end if;
               if (ram_ptr = 60) then
-
                 if (is_ipv4 = '1' and is_udp = '1') then
                   if (unsigned(udp_port_sig) = 319 or unsigned(udp_port_sig) = 320) then
-                    -- ptp packet
+                    -- ptp packet: toggle immediately (small, fixed-size)
                     is_ptp_pkt_tog <= not is_ptp_pkt_tog;
-                    is_mcu_pkt_tog <= not is_mcu_pkt_tog; -- not used, mcu needs packet length, we do not know yet
-
+                    mcu_pkt_pending <= '1'; -- also forward to MCU for BMC
                   elsif (unsigned(udp_port_sig) = 5004) then
-                    -- rtp
+                    -- rtp: toggle immediately (time-critical)
                     is_rtp_pkt_tog <= not is_rtp_pkt_tog;
                   else
-                    is_mcu_pkt_tog <= not is_mcu_pkt_tog;
+                    -- other UDP: defer MCU toggle to s_FrameRdy
+                    mcu_pkt_pending <= '1';
                   end if;
                 else
-                  is_mcu_pkt_tog <= not is_mcu_pkt_tog;
-
+                  -- non-UDP (TCP, ARP, etc.): defer MCU toggle to s_FrameRdy
+                  mcu_pkt_pending <= '1';
                 end if;
               end if;
             else
@@ -132,6 +133,11 @@ begin
         -- set signal, that frame in RAM is completed
         rx_byte_count <= to_unsigned(ram_ptr, 11);
         frame_rdy     <= '1';
+
+        -- Toggle MCU packet notification now that length is valid
+        if mcu_pkt_pending = '1' then
+          is_mcu_pkt_tog <= not is_mcu_pkt_tog;
+        end if;
 
         s_SM_Ethernet <= s_Done;
 

@@ -13,7 +13,7 @@ use ieee.numeric_std.all;
 
 entity eth_ram is
 	generic(
-		lastAddress : integer := 1500
+		lastAddress : integer := 1532
 	);
 	port(
 		rx_clk			: in std_logic;
