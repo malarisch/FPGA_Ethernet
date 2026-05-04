@@ -87,11 +87,13 @@ begin
 			if (processing_stage = 1) then
 				sync_out <= '1';
 				if ((pkt_type_msb_sig & ram_parser(13)) = x"0800") then -- ipv4
-				processing_stage <= 2;
-				else 
-				processing_stage <= 0;
-					is_mcu_pkt <= '0';
+					processing_stage <= 2;
+				else
+					-- non-IPv4 (ARP, etc.): forward to MCU
+					is_mcu_pkt_tog <= not is_mcu_pkt_tog;
+					is_mcu_pkt <= '1';
 					is_rtp_pkt <= '0';
+					processing_stage <= 0;
 				end if;
 			elsif (processing_stage = 2) then
 				sync_out <= '1';
@@ -117,8 +119,10 @@ begin
 					is_rtp_pkt <= '1';
 					is_rtp_pkt_tog <= not is_rtp_pkt_tog;
 				else 
-					is_mcu_pkt <= '1';
-					is_mcu_pkt_tog <= not is_mcu_pkt_tog;
+					if (unsigned(udp_dst_port_sig) /= 319 and unsigned(udp_dst_port_sig) /= 320) then -- filter out ptp packets to mcu
+						is_mcu_pkt <= '1';
+						is_mcu_pkt_tog <= not is_mcu_pkt_tog;
+					end if;
 				end if;
 				processing_stage <= 0;
 			end if;
@@ -137,9 +141,9 @@ begin
             dataOut_sysclk_rtp <= ram_rtp(to_integer(readAddrRTP));
         end if;
     end process;
-    process (sys_clk_i)
+    process (rx_clk)
     begin
-        if rising_edge(sys_clk_i) then
+        if rising_edge(rx_clk) then
             dataOut_rxclk <= ram_mcu(to_integer(readAddrMCU));
         end if;
     end process;

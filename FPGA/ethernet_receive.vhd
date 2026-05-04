@@ -149,6 +149,7 @@ begin
 
   ptp_frame_qualifier_proc : process (rx_clk) begin
     if (rising_edge(rx_clk)) then
+      if (rx_byte_received = '1') then
       if (ram_ptr = 0 and rx_data = x"01") then
         ptp_frame_qualifier <= '1';
       end if;
@@ -160,6 +161,7 @@ begin
               ptp_frame_qualifier <= '0';
         end if;
       end if;
+    end if;
     end if;
   end process;
 
