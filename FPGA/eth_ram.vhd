@@ -23,20 +23,16 @@ entity eth_ram is
 
 		sync_in			: in std_logic;
 
-		readAddrPTP		: in unsigned(10 downto 0); -- 0..1531
 		readAddrRTP		: in unsigned(10 downto 0); -- 0..1531
 		readAddrMCU		: in unsigned(10 downto 0); -- 0..1531
 		
-		dataOut_sysclk_ptp		: out STD_LOGIC_VECTOR(7 downto 0);
 		dataOut_sysclk_rtp		: out STD_LOGIC_VECTOR(7 downto 0);
 		dataOut_rxclk			: out STD_LOGIC_VECTOR(7 downto 0);
 		
 		sync_out			: out std_logic;
 		is_mcu_pkt_o	: out std_logic;
-		is_ptp_pkt_o	: out std_logic;
 		is_rtp_pkt_o	: out std_logic;
 		is_mcu_pkt_tog_o	: out std_logic;
-		is_ptp_pkt_tog_o	: out std_logic;
 		is_rtp_pkt_tog_o	: out std_logic;
 		sys_clk_i : in std_logic
 	);
@@ -45,7 +41,6 @@ end eth_ram;
 architecture Behavioral of eth_ram is
 	type t_ram is array(lastAddress downto 0) of std_logic_vector(7 downto 0);
 	type t_parser_ram is array(38 downto 0) of std_logic_vector(7 downto 0);
-	signal ram_ptp: t_ram;
 	signal ram_rtp: t_ram;
 	signal ram_mcu: t_ram;
 	signal ram_parser: t_parser_ram;
@@ -54,10 +49,8 @@ architecture Behavioral of eth_ram is
 	signal udp_dst_port_sig: STD_LOGIC_VECTOR(15 downto 0) := (others => '0');
 	signal processing_stage: integer range 0 to 5;
 	signal is_rtp_pkt: std_logic;
-	signal is_ptp_pkt: std_logic;
 	signal is_mcu_pkt: std_logic;
 	signal is_rtp_pkt_tog: std_logic;
-	signal is_ptp_pkt_tog: std_logic;
 	signal is_mcu_pkt_tog: std_logic;
 
 begin
@@ -67,7 +60,6 @@ begin
 		if rising_edge(rx_clk) then
 			-- write to RAM
 			if (writeAddr <= lastAddress) then
-				ram_ptp(to_integer(writeAddr)) <= data_in;
 				ram_rtp(to_integer(writeAddr)) <= data_in;
 				ram_mcu(to_integer(writeAddr)) <= data_in;
 			end if;
@@ -98,9 +90,7 @@ begin
 				processing_stage <= 2;
 				else 
 				processing_stage <= 0;
-									is_mcu_pkt_tog <= not is_mcu_pkt_tog;
-					is_mcu_pkt <= '1';
-					is_ptp_pkt <= '0';
+					is_mcu_pkt <= '0';
 					is_rtp_pkt <= '0';
 				end if;
 			elsif (processing_stage = 2) then
@@ -111,7 +101,6 @@ begin
 					-- not an udp packet, jump to mcu fwd
 					is_mcu_pkt_tog <= not is_mcu_pkt_tog;
 					is_mcu_pkt <= '1';
-					is_ptp_pkt <= '0';
 					is_rtp_pkt <= '0';
 					processing_stage <= 0;
 				end if;
@@ -123,12 +112,8 @@ begin
 				processing_stage <= 5;
 			elsif (processing_stage = 5) then
 				is_mcu_pkt <= '0';
-				is_ptp_pkt <= '0';
 				is_rtp_pkt <= '0';
-				if unsigned(udp_dst_port_sig) = 319 or unsigned(udp_dst_port_sig) = 320 then
-					is_ptp_pkt <= '1';
-					is_ptp_pkt_tog <= not is_ptp_pkt_tog;
-				elsif (unsigned(udp_dst_port_sig) = 5004) then
+				if (unsigned(udp_dst_port_sig) = 5004) then
 					is_rtp_pkt <= '1';
 					is_rtp_pkt_tog <= not is_rtp_pkt_tog;
 				else 
@@ -143,19 +128,16 @@ begin
 	end process;
 
 	is_mcu_pkt_o <= is_mcu_pkt;
-	is_ptp_pkt_o <= is_ptp_pkt;
 	is_rtp_pkt_o <= is_rtp_pkt;
 	is_mcu_pkt_tog_o <= is_mcu_pkt_tog;
-	is_ptp_pkt_tog_o <= is_ptp_pkt_tog;
 	is_rtp_pkt_tog_o <= is_rtp_pkt_tog;
     process (sys_clk_i)
     begin
         if rising_edge(sys_clk_i) then
-            dataOut_sysclk_ptp <= ram_ptp(to_integer(readAddrPTP));
             dataOut_sysclk_rtp <= ram_rtp(to_integer(readAddrRTP));
         end if;
     end process;
-    process (rx_clk)
+    process (sys_clk_i)
     begin
         if rising_edge(sys_clk_i) then
             dataOut_rxclk <= ram_mcu(to_integer(readAddrMCU));

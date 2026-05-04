@@ -16,32 +16,33 @@ entity ethernet_receive is
   );
   port (
     rx_clk           : in std_logic;
-    rx_frame         : in std_logic;                    -- start of packet (we are ignoring this as we wait until we have the FIFO filled with a full frame
+    rx_frame         : in std_logic;                    
     rx_data          : in std_logic_vector(7 downto 0); -- data-octet
     rx_byte_received : in std_logic;
     rx_error         : in std_logic;
 
-    ram_addr         : out unsigned(10 downto 0); -- 11 bit to store one full fifo
-    ram_data         : out std_logic_vector(7 downto 0);
+    receive_byte_index         : out unsigned(10 downto 0); -- 11 bit to store one full fifo
+    received_byte         : out std_logic_vector(7 downto 0);
     frame_rdy        : out std_logic; -- ready
     rx_byte_count    : out unsigned(10 downto 0);
     is_mcu_pkt_tog_o : out std_logic;
-    is_ptp_pkt_tog_o : out std_logic;
-    is_rtp_pkt_tog_o : out std_logic
+    is_rtp_pkt_tog_o : out std_logic;
+
+    is_ptp_frame_o : out std_logic
   );
 end entity;
 
 architecture Behavioral of ethernet_receive is
   type t_SM_Ethernet is (s_Idle, s_Read, s_FrameRdy, s_Done);
   signal s_SM_Ethernet  : t_SM_Ethernet           := s_Idle;
-  signal ram_ptr        : integer range 0 to 2000 := 0; -- we expecting not more than 2^11 bytes per frame
+  signal ram_ptr        : integer range 0 to 1532 := 0; -- we expecting not more than 2^11 bytes per frame
   signal udp_port_sig   : std_logic_vector(15 downto 0);
   signal is_ipv4        : std_logic;
   signal is_udp         : std_logic;
   signal is_rtp_pkt_tog : std_logic;
-  signal is_ptp_pkt_tog : std_logic;
   signal is_mcu_pkt_tog : std_logic;
   signal mcu_pkt_pending : std_logic;  -- deferred MCU toggle
+  signal ptp_frame_qualifier : std_logic;
 begin
   process (rx_clk)
   begin
@@ -55,8 +56,8 @@ begin
           -- prepare receiving new ethernet-frame into RAM
           -- IMPORTANT: Also capture first byte immediately if available
           if (rx_byte_received = '1') then
-            ram_addr <= to_unsigned(0, 11);
-            ram_data <= rx_data;
+            receive_byte_index <= to_unsigned(0, 11);
+            received_byte <= rx_data;
             ram_ptr  <= 1; -- first byte already stored
           else
             ram_ptr <= 0;
@@ -71,8 +72,8 @@ begin
             if (rx_byte_received = '1') then
               -- we received a valid byte
               if (ram_ptr <= lastRamAddress) then
-                ram_addr    <= to_unsigned(ram_ptr, 11);
-                ram_data    <= rx_data;
+                receive_byte_index    <= to_unsigned(ram_ptr, 11);
+                received_byte    <= rx_data;
               else
                 -- dont store received byte into ram as data is out of ram-size
                 -- we can store only "lastRamAddress" bytes
@@ -99,12 +100,8 @@ begin
               end if;
               if (ram_ptr = 60) then
                 if (is_ipv4 = '1' and is_udp = '1') then
-                  if (unsigned(udp_port_sig) = 319 or unsigned(udp_port_sig) = 320) then
-                    -- ptp packet: toggle immediately (small, fixed-size)
-                    is_ptp_pkt_tog <= not is_ptp_pkt_tog;
-                    mcu_pkt_pending <= '1'; -- also forward to MCU for BMC
-                  elsif (unsigned(udp_port_sig) = 5004) then
-                    -- rtp: toggle immediately (time-critical)
+                  if (unsigned(udp_port_sig) = 5004) then
+                    -- rtp: toggle immediately
                     is_rtp_pkt_tog <= not is_rtp_pkt_tog;
                   else
                     -- other UDP: defer MCU toggle to s_FrameRdy
@@ -149,7 +146,24 @@ begin
       end if;
     end if;
   end process;
+
+  ptp_frame_qualifier_proc : process (rx_clk) begin
+    if (rising_edge(rx_clk)) then
+      if (ram_ptr = 0 and rx_data = x"01") then
+        ptp_frame_qualifier <= '1';
+      end if;
+      if ptp_frame_qualifier = '1' then
+        if (ram_ptr = 1 and rx_data /= x"00")
+            or (ram_ptr = 2 and rx_data /= x"5e")
+            or (ram_ptr = 4 and rx_data /= x"01")
+            or (ram_ptr = 5 and rx_data /= x"81") then
+              ptp_frame_qualifier <= '0';
+        end if;
+      end if;
+    end if;
+  end process;
+
+  is_ptp_frame_o <= ptp_frame_qualifier and rx_frame;
   is_mcu_pkt_tog_o <= is_mcu_pkt_tog;
-  is_ptp_pkt_tog_o <= is_ptp_pkt_tog;
   is_rtp_pkt_tog_o <= is_rtp_pkt_tog;
 end Behavioral;
