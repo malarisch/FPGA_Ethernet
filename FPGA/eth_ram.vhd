@@ -13,7 +13,8 @@ use ieee.numeric_std.all;
 
 entity eth_ram is
 	generic(
-		lastAddress : integer := 1532
+		lastAddress : integer := 1532;
+		PTP_TO_MCU : boolean := false
 	);
 	port(
 		rx_clk			: in std_logic;
@@ -119,7 +120,7 @@ begin
 					is_rtp_pkt <= '1';
 					is_rtp_pkt_tog <= not is_rtp_pkt_tog;
 				else 
-					if (unsigned(udp_dst_port_sig) /= 319 and unsigned(udp_dst_port_sig) /= 320) then -- filter out ptp packets to mcu
+					if ((unsigned(udp_dst_port_sig) /= 319 and unsigned(udp_dst_port_sig) /= 320) or PTP_TO_MCU = true) then -- filter out ptp packets to mcu
 						is_mcu_pkt <= '1';
 						is_mcu_pkt_tog <= not is_mcu_pkt_tog;
 					end if;
